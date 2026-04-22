@@ -1,9 +1,7 @@
-import Image from "next/image";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return (
-    <div >
-    <h1>Hello</h1>
-    </div>
-  );
+  const { userId } = auth();
+  redirect(userId ? "/workflow" : "/sign-in");
 }
