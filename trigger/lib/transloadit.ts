@@ -29,7 +29,7 @@ export async function uploadToTransloadit(args: {
     auth: { key, expires },
     template_id: undefined,
     steps: {
-      store: {
+      ":original": {
         robot: "/upload/handle",
       },
     },
@@ -59,9 +59,8 @@ export async function uploadToTransloadit(args: {
 
   const json = (await res.json()) as AssemblyResponse;
   const url =
-    json?.results?.store?.[0]?.ssl_url ||
-    json?.uploads?.[0]?.ssl_url ||
-    json?.assembly_ssl_url;
+  json?.results?.[":original"]?.[0]?.ssl_url ??
+  json?.uploads?.[0]?.ssl_url;
 
   if (!url) throw new Error("Transloadit upload succeeded but no URL returned.");
   return { url, assemblyId: json.assembly_id };
