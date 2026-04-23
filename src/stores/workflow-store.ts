@@ -307,32 +307,90 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
   },
 
+  // saveWorkflowToServer: async () => {
+  //   const wf = get().workflow;
+  //   set({ isSavingWorkflow: true, workflowError: null });
+  //   try {
+  //     const name = wf?.name ?? "My workflow";
+  //     const payload = { name, graph: { nodes: get().nodes, edges: get().edges } };
+  //     const res = await fetch("/api/workflows", {
+  //       method: "POST",
+  //       headers: { "content-type": "application/json" },
+  //       body: JSON.stringify(payload),
+  //     });
+  //     if (!res.ok) {
+  //       const text = await res.text().catch(() => "");
+  //       throw new Error(`Failed to save workflow: ${res.status} ${text}`);
+  //     }
+  //     const json = (await res.json()) as { workflow: WorkflowApiShape };
+  //     set({ workflow: json.workflow });
+  //     return true;
+  //   } catch (e) {
+  //     set({ workflowError: e instanceof Error ? e.message : "Failed to save workflow" });
+  //     return false;
+  //   } finally {
+  //     set({ isSavingWorkflow: false });
+  //   }
+  // },
+
+
   saveWorkflowToServer: async () => {
     const wf = get().workflow;
+  
     set({ isSavingWorkflow: true, workflowError: null });
+  
     try {
       const name = wf?.name ?? "My workflow";
-      const payload = { name, graph: { nodes: get().nodes, edges: get().edges } };
+  
+      const payload = {
+        name,
+        graph: {
+          nodes: get().nodes,
+          edges: get().edges,
+        },
+      };
+  
       const res = await fetch("/api/workflows", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
+  
+      const json = await res.json().catch(() => null);
+  
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Failed to save workflow: ${res.status} ${text}`);
+        throw new Error(
+          json?.error || `Failed to save workflow (${res.status})`
+        );
       }
-      const json = (await res.json()) as { workflow: WorkflowApiShape };
-      set({ workflow: json.workflow });
+  
+      // ✅ Update workflow
+      set({
+        workflow: json?.workflow,
+      });
+  
+      // ✅ (Optional) handle execution response
+      if (json?.execution) {
+        console.log("Execution status:", json.execution.status);
+        // You can later store this in Zustand if needed
+        // set({ lastExecution: json.execution });
+      }
+  
       return true;
+  
     } catch (e) {
-      set({ workflowError: e instanceof Error ? e.message : "Failed to save workflow" });
+      set({
+        workflowError:
+          e instanceof Error ? e.message : "Failed to save workflow",
+      });
+  
       return false;
+  
     } finally {
       set({ isSavingWorkflow: false });
     }
   },
-
+  
   onNodesChange: (changes) => {
     const before = { nodes: get().nodes, edges: get().edges };
     set((state) => ({

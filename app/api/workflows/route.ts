@@ -46,16 +46,19 @@ export async function POST(req: Request) {
     where: { userId, name },
     orderBy: { updatedAt: "desc" },
   });
-
+  const cleanGraph = cleanJSON(graph);
   const workflow = existing
     ? await prisma.workflow.update({
         where: { id: existing.id },
-        data: { graph: graph as unknown as Prisma.InputJsonValue },
+        data: { graph: cleanGraph },
       })
     : await prisma.workflow.create({
-        data: { userId, name, graph: graph as unknown as Prisma.InputJsonValue },
+        data: { userId, name, graph: cleanGraph },
       });
 
   return NextResponse.json({ workflow });
 }
 
+function cleanJSON(data: any) {
+  return JSON.parse(JSON.stringify(data));
+}
