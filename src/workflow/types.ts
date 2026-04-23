@@ -1,4 +1,4 @@
-import type { Node, Edge } from "reactflow";
+import type { Node, Edge } from "@xyflow/react";
 
 export type NodeKind =
   | "text"

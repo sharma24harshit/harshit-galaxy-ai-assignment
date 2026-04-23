@@ -1,4 +1,4 @@
-import type { Edge } from "reactflow";
+import type { Edge } from "@xyflow/react";
 import { buildDag, topoLayers, upstreamClosure } from "./dag";
 
 export type RunPlan = {

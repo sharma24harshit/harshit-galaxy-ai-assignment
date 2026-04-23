@@ -1,43 +1,140 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactFlow, {
+import {
   Background,
   MiniMap,
   Controls,
+  ReactFlow,
+  ReactFlowProvider,
   type NodeTypes,
   type Connection,
   useReactFlow,
-} from "reactflow";
-import "reactflow/dist/style.css";
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import {
+  Bot,
+  Clapperboard,
+  Crop,
+  FolderClosed,
+  ImageIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelsTopLeft,
+  Play,
+  Redo2,
+  Save,
+  Sparkles,
+  Type,
+  Undo2,
+  Video,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 import NextflowNode from "@/src/workflow/nodes/nextflow-node";
 import { useWorkflowStore } from "@/src/stores/workflow-store";
 import type { NodeKind } from "@/src/workflow/types";
 
 const DND_MIME = "application/x-nextflow-nodekind";
 
-function SidebarButton(props: {
+const TOOL_ITEMS: Array<{
   kind: NodeKind;
   label: string;
-  onClick: (kind: NodeKind) => void;
+  icon: LucideIcon;
+  iconClassName: string;
+}> = [
+  {
+    kind: "text",
+    label: "Text Node",
+    icon: Type,
+    iconClassName: "bg-white/10 text-white",
+  },
+  {
+    kind: "upload_image",
+    label: "Upload Image",
+    icon: ImageIcon,
+    iconClassName: "bg-sky-500/20 text-sky-200",
+  },
+  {
+    kind: "upload_video",
+    label: "Upload Video",
+    icon: Video,
+    iconClassName: "bg-amber-500/20 text-amber-200",
+  },
+  {
+    kind: "llm",
+    label: "Run any LLM",
+    icon: Bot,
+    iconClassName: "bg-violet-500/20 text-violet-200",
+  },
+  {
+    kind: "crop_image",
+    label: "Crop Image",
+    icon: Crop,
+    iconClassName: "bg-emerald-500/20 text-emerald-200",
+  },
+  {
+    kind: "extract_frame",
+    label: "Extract Frame",
+    icon: Clapperboard,
+    iconClassName: "bg-rose-500/20 text-rose-200",
+  },
+];
+
+function SidebarItemButton(props: {
+  icon: LucideIcon;
+  label: string;
+  collapsed: boolean;
+  active?: boolean;
+  disabled?: boolean;
+  iconClassName?: string;
+  onClick?: () => void;
+  draggable?: boolean;
+  onDragStart?: (event: React.DragEvent<HTMLButtonElement>) => void;
 }) {
+  const Icon = props.icon;
+
   return (
     <button
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData(DND_MIME, props.kind);
-        e.dataTransfer.effectAllowed = "move";
-      }}
-      onClick={() => props.onClick(props.kind)}
-      className="h-10 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-left px-3 active:scale-[0.99]"
-      title="Click to add, or drag to canvas"
+      type="button"
+      draggable={props.draggable}
+      onDragStart={props.onDragStart}
+      onClick={props.onClick}
+      disabled={props.disabled}
+      title={props.label}
+      className={[
+        "group flex h-11 items-center rounded-2xl border text-sm transition-all",
+        props.collapsed ? "justify-center px-0" : "gap-3 px-3 text-left",
+        props.active
+          ? "border-white/10 bg-white/[0.14] text-white"
+          : "border-transparent bg-transparent text-white/78 hover:border-white/6 hover:bg-white/[0.08] hover:text-white",
+        props.disabled ? "cursor-not-allowed opacity-35" : "active:scale-[0.99]",
+      ].join(" ")}
     >
-      {props.label}
+      <span
+        className={[
+          "flex size-8 shrink-0 items-center justify-center rounded-xl transition-colors",
+          props.active ? "bg-blue-500/20 text-blue-200" : props.iconClassName ?? "bg-white/10 text-white/80",
+        ].join(" ")}
+      >
+        <Icon className="size-4" strokeWidth={2.1} />
+      </span>
+      {props.collapsed ? null : <span className="truncate">{props.label}</span>}
     </button>
   );
 }
 
-export default function WorkflowBuilder() {
+function SidebarSectionLabel(props: { collapsed: boolean; children: React.ReactNode }) {
+  if (props.collapsed) return null;
+
+  return (
+    <div className="px-2 text-[11px] uppercase tracking-[0.22em] text-white/28">
+      {props.children}
+    </div>
+  );
+}
+
+function WorkflowBuilderContent() {
   const nodes = useWorkflowStore((s) => s.nodes);
   const edges = useWorkflowStore((s) => s.edges);
   const workflow = useWorkflowStore((s) => s.workflow);
@@ -68,6 +165,7 @@ export default function WorkflowBuilder() {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const nodeTypes = useMemo<NodeTypes>(() => ({ nextflowNode: NextflowNode }), []);
 
@@ -143,7 +241,14 @@ export default function WorkflowBuilder() {
   const focusedNodeId = selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
 
   return (
-    <div className="h-[calc(100vh-3rem)] grid grid-cols-[18rem_1fr_20rem]">
+    <div
+      className={[
+        "h-[calc(100vh-3rem)] grid transition-[grid-template-columns] duration-300 ease-out",
+        isSidebarCollapsed
+          ? "grid-cols-[4.75rem_1fr_20rem]"
+          : "grid-cols-[18rem_1fr_20rem]",
+      ].join(" ")}
+    >
       <aside className="border-r border-white/10 bg-[#0b0d12]">
         <div className="p-3">
           <div className="flex items-center justify-between mb-3">
@@ -356,3 +461,10 @@ export default function WorkflowBuilder() {
   );
 }
 
+export default function WorkflowBuilder() {
+  return (
+    <ReactFlowProvider>
+      <WorkflowBuilderContent />
+    </ReactFlowProvider>
+  );
+}

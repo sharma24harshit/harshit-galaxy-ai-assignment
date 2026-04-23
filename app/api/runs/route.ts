@@ -7,7 +7,7 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import type { orchestrateWorkflowRun } from "@/trigger/tasks/orchestrate-run";
 
 export async function GET() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const runs = await prisma.workflowRun.findMany({
@@ -20,7 +20,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);

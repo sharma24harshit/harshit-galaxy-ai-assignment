@@ -12,6 +12,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.21.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.17.0",
     "@trigger.dev/sdk": "latest",
@@ -22,11 +23,10 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "transloadit": "^1.3.0",
-    "zustand": "^5.0.8",
-    "zod": "^4.1.11"
+    "zod": "^4.1.11",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

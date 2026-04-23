@@ -7,7 +7,7 @@ import {
   type Edge,
   type EdgeChange,
   type NodeChange,
-} from "reactflow";
+} from "@xyflow/react";
 import { isValidTypedConnection } from "@/src/workflow/connection";
 import { NODE_SPECS, type NextflowNode, type NextflowNodeData, type NodeKind } from "@/src/workflow/types";
 import { createSampleWorkflow } from "@/src/workflow/sample-workflow";

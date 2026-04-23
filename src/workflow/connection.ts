@@ -1,4 +1,4 @@
-import type { Connection, Edge, Node } from "reactflow";
+import type { Connection, Edge, Node } from "@xyflow/react";
 import { NODE_SPECS, type NextflowNodeData, type NodeKind, type ValueType } from "./types";
 
 function parseHandleId(handleId: string | null | undefined) {

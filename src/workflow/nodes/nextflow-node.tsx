@@ -1,6 +1,6 @@
 "use client";
 
-import { Handle, Position, type NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { NODE_SPECS, type NextflowNodeData } from "../types";
 import { useWorkflowStore } from "@/src/stores/workflow-store";
 

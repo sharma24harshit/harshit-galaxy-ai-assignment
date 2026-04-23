@@ -9,10 +9,9 @@ export default function WorkflowPage() {
           <div className="size-7 rounded bg-white/10" />
           <span className="text-sm font-medium">Nextflow</span>
         </div>
-        <UserButton />
+        <UserButton afterSignOutUrl="/sign-in" />
       </header>
       <WorkflowBuilder />
     </div>
   );
 }
-

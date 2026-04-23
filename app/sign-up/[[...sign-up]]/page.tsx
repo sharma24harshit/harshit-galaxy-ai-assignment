@@ -3,8 +3,12 @@ import { SignUp } from "@clerk/nextjs";
 export default function Page() {
   return (
     <main className="min-h-screen grid place-items-center bg-neutral-950 text-neutral-50">
-      <SignUp />
+      <SignUp
+        routing="path"
+        path="/sign-up"
+        signInUrl="/sign-in"
+        fallbackRedirectUrl="/workflow"
+      />
     </main>
   );
 }
-
