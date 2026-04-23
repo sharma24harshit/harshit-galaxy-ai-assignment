@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/src/lib/prisma";
 import { saveWorkflowSchema } from "@/src/workflow/schema";
 import { createSampleWorkflow } from "@/src/workflow/sample-workflow";
@@ -18,7 +19,7 @@ export async function GET() {
       data: {
         userId,
         name: "Product Marketing Kit Generator",
-        graph: createSampleWorkflow(),
+        graph: createSampleWorkflow() as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -49,10 +50,10 @@ export async function POST(req: Request) {
   const workflow = existing
     ? await prisma.workflow.update({
         where: { id: existing.id },
-        data: { graph },
+        data: { graph: graph as unknown as Prisma.InputJsonValue },
       })
     : await prisma.workflow.create({
-        data: { userId, name, graph },
+        data: { userId, name, graph: graph as unknown as Prisma.InputJsonValue },
       });
 
   return NextResponse.json({ workflow });

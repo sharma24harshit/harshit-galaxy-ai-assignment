@@ -9,7 +9,12 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import { isValidTypedConnection } from "@/src/workflow/connection";
-import { NODE_SPECS, type NextflowNode, type NextflowNodeData, type NodeKind } from "@/src/workflow/types";
+import {
+  NODE_SPECS,
+  type NextflowNode,
+  type NextflowNodeData,
+  type NodeKind,
+} from "@/src/workflow/types";
 import { createSampleWorkflow } from "@/src/workflow/sample-workflow";
 
 type Snapshot = {
@@ -56,15 +61,107 @@ function normalizeConnectedInputs(nodes: NextflowNode[], edges: Edge[]) {
 
 function cloneSnapshot(s: Snapshot): Snapshot {
   return {
-    nodes: s.nodes.map((n) => ({ ...n, data: { ...n.data, inputs: { ...n.data.inputs }, connectedInputs: { ...n.data.connectedInputs }, outputs: { ...n.data.outputs } } })),
+    nodes: s.nodes.map((n) => ({
+      ...n,
+      data: {
+        ...n.data,
+        inputs: { ...n.data.inputs },
+        connectedInputs: { ...n.data.connectedInputs },
+        outputs: { ...n.data.outputs },
+      },
+    })),
     edges: s.edges.map((e) => ({ ...e })),
   };
+}
+
+function updateNodeData(
+  nodes: NextflowNode[],
+  nodeId: string,
+  transform: (data: NextflowNodeData) => NextflowNodeData
+) {
+  return nodes.map((node) =>
+    node.id !== nodeId
+      ? node
+      : {
+          ...node,
+          data: transform(node.data),
+        }
+  );
+}
+
+function primeRunPlanOnNodes(nodes: NextflowNode[], run: RunApiShape) {
+  const layers = (run.nodeRuns as { plan?: { layers?: unknown } } | null)?.plan?.layers;
+  if (!Array.isArray(layers) || layers.length === 0) return nodes;
+
+  const firstLayer = new Set<string>(
+    (Array.isArray(layers[0]) ? layers[0] : []).filter(
+      (nodeId): nodeId is string => typeof nodeId === "string"
+    )
+  );
+  const plannedNodeIds = new Set<string>(
+    layers
+      .flatMap((layer) => (Array.isArray(layer) ? layer : []))
+      .filter((nodeId): nodeId is string => typeof nodeId === "string")
+  );
+
+  return nodes.map((node) => {
+    if (!plannedNodeIds.has(node.id)) return node;
+
+    const status: NextflowNodeData["status"] = firstLayer.has(node.id)
+      ? "running"
+      : "idle";
+
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        outputs:
+          node.data.kind === "llm"
+            ? { ...node.data.outputs, output: "" }
+            : node.data.outputs,
+        status,
+        errorMessage: undefined,
+      },
+    };
+  });
+}
+
+function applyRunRecordToNodes(nodes: NextflowNode[], run: RunApiShape | undefined) {
+  const nodeRuns = (run?.nodeRuns as { nodes?: Record<string, any> } | null)?.nodes;
+  if (!nodeRuns) return nodes;
+
+  return nodes.map((node) => {
+    const nodeRun = nodeRuns[node.id];
+    if (!nodeRun) return node;
+
+    const status: NextflowNodeData["status"] =
+      nodeRun.status === "success"
+        ? "success"
+        : nodeRun.status === "running"
+          ? "running"
+          : nodeRun.status === "failed"
+            ? "error"
+            : node.data.status;
+
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        status,
+        outputs: nodeRun.outputs
+          ? { ...node.data.outputs, ...nodeRun.outputs }
+          : node.data.outputs,
+        errorMessage: nodeRun.error ? String(nodeRun.error) : undefined,
+      },
+    };
+  });
 }
 
 function defaultInputsForKind(kind: NodeKind): Record<string, string> {
   const spec = NODE_SPECS[kind];
   const inputs: Record<string, string> = {};
   if (kind === "text") inputs["text"] = "";
+  if (kind === "llm") inputs["model"] = "gemini-2.5-flash";
   for (const h of spec.inputs) {
     if (h.id === "x_percent") inputs[h.id] = "0";
     else if (h.id === "y_percent") inputs[h.id] = "0";
@@ -128,7 +225,7 @@ type WorkflowState = {
 
   ensureSampleLoaded: () => void;
   loadWorkflowFromServer: () => Promise<void>;
-  saveWorkflowToServer: () => Promise<void>;
+  saveWorkflowToServer: () => Promise<boolean>;
   setGraph: (nodes: NextflowNode[], edges: Edge[]) => void;
 
   onNodesChange: (changes: NodeChange[]) => void;
@@ -137,6 +234,7 @@ type WorkflowState = {
 
   addNodeAt: (kind: NodeKind, x: number, y: number) => void;
   updateNodeInput: (nodeId: string, inputId: string, value: string) => void;
+  uploadImageToNode: (nodeId: string, file: File) => Promise<void>;
   deleteSelection: (selectedNodeIds: string[], selectedEdgeIds: string[]) => void;
 
   runAllScaffold: () => void;
@@ -226,8 +324,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
       const json = (await res.json()) as { workflow: WorkflowApiShape };
       set({ workflow: json.workflow });
+      return true;
     } catch (e) {
       set({ workflowError: e instanceof Error ? e.message : "Failed to save workflow" });
+      return false;
     } finally {
       set({ isSavingWorkflow: false });
     }
@@ -236,7 +336,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   onNodesChange: (changes) => {
     const before = { nodes: get().nodes, edges: get().edges };
     set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes),
+      nodes: applyNodeChanges(changes, state.nodes) as NextflowNode[],
     }));
     const after = { nodes: get().nodes, edges: get().edges };
     if (JSON.stringify(before) !== JSON.stringify(after)) {
@@ -246,9 +346,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   onEdgesChange: (changes) => {
     const before = { nodes: get().nodes, edges: get().edges };
-    set((state) => ({
-      edges: applyEdgeChanges(changes, state.edges),
-    }));
+    set((state) => {
+      const nextEdges = applyEdgeChanges(changes, state.edges);
+      return {
+        edges: nextEdges,
+        nodes: normalizeConnectedInputs(state.nodes, nextEdges),
+      };
+    });
     const after = { nodes: get().nodes, edges: get().edges };
     if (JSON.stringify(before) !== JSON.stringify(after)) {
       set((state) => ({ past: [...state.past, cloneSnapshot(before)], future: [] }));
@@ -331,6 +435,55 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       past: [...state.past, cloneSnapshot(before)],
       future: [],
     }));
+  },
+
+  uploadImageToNode: async (nodeId, file) => {
+    const node = get().nodes.find((candidate) => candidate.id === nodeId);
+    if (!node || node.data.kind !== "upload_image") return;
+
+    set((state) => ({
+      nodes: updateNodeData(state.nodes, nodeId, (data) => ({
+        ...data,
+        status: "running",
+        errorMessage: undefined,
+        outputs: { ...data.outputs, image_url: "" },
+      })),
+    }));
+
+    try {
+      const form = new FormData();
+      form.append("file", file);
+
+      const res = await fetch("/api/uploads/image", {
+        method: "POST",
+        body: form,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `Upload failed with status ${res.status}`);
+      }
+
+      const json = (await res.json()) as { url: string };
+
+      set((state) => ({
+        nodes: updateNodeData(state.nodes, nodeId, (data) => ({
+          ...data,
+          status: "success",
+          errorMessage: undefined,
+          outputs: { ...data.outputs, image_url: json.url },
+        })),
+      }));
+    } catch (error) {
+      set((state) => ({
+        nodes: updateNodeData(state.nodes, nodeId, (data) => ({
+          ...data,
+          status: "error",
+          errorMessage:
+            error instanceof Error ? error.message : "Image upload failed",
+        })),
+      }));
+    }
   },
 
   deleteSelection: (selectedNodeIds, selectedEdgeIds) => {
@@ -424,7 +577,20 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         throw new Error(`Failed to load runs: ${res.status} ${text}`);
       }
       const json = (await res.json()) as { runs: RunApiShape[] };
-      set({ runs: json.runs ?? [] });
+      const runs = json.runs ?? [];
+      set({ runs });
+
+      const workflowId = get().workflow?.id;
+      const workflowRuns = workflowId
+        ? runs.filter((run) => run.workflowId === workflowId)
+        : [];
+      const activeRun =
+        workflowRuns.find((run) => run.status === "RUNNING") ?? workflowRuns[0];
+      if (activeRun) {
+        set((state) => ({
+          nodes: applyRunRecordToNodes(state.nodes, activeRun),
+        }));
+      }
     } catch (e) {
       set({ runsError: e instanceof Error ? e.message : "Failed to load runs" });
     } finally {
@@ -437,6 +603,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     if (!wf?.id) {
       await get().loadWorkflowFromServer();
     }
+
+    const saved = await get().saveWorkflowToServer();
+    if (!saved) {
+      set({ runsError: "Please resolve the workflow save error before running." });
+      return;
+    }
+
     const workflowId = get().workflow?.id;
     if (!workflowId) return;
 
@@ -450,6 +623,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       set({ runsError: `Failed to create run: ${res.status} ${text}` });
       return;
     }
+
+    const json = (await res.json()) as { run: RunApiShape };
+    set((state) => ({
+      runs: [json.run, ...state.runs.filter((run) => run.id !== json.run.id)],
+      nodes: primeRunPlanOnNodes(state.nodes, json.run),
+      runsError: null,
+    }));
 
     await get().loadRunsFromServer();
   },
@@ -481,22 +661,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   applyRunOutputsToCanvas: (runId) => {
     const run = get().runDetailsById[runId] ?? get().runs.find((r) => r.id === runId);
-    const nodeRuns = (run as any)?.nodeRuns?.nodes;
-    if (!nodeRuns) return;
+    if (!run) return;
 
     set((state) => ({
-      nodes: state.nodes.map((n) => {
-        const nr = nodeRuns[n.id];
-        if (!nr) return n;
-        const status =
-          nr.status === "success" ? "success" : nr.status === "running" ? "running" : nr.status === "failed" ? "error" : n.data.status;
-        const outputs = nr.outputs ? { ...n.data.outputs, ...nr.outputs } : n.data.outputs;
-        const errorMessage = nr.error ? String(nr.error) : undefined;
-        return {
-          ...n,
-          data: { ...n.data, status, outputs, errorMessage },
-        };
-      }),
+      nodes: applyRunRecordToNodes(state.nodes, run),
     }));
   },
 

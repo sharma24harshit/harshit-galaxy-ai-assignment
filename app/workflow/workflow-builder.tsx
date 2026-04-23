@@ -3,12 +3,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
   type Connection,
-  type NodeTypes,
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -172,11 +172,13 @@ function WorkflowBuilderContent() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  const nodeTypes = useMemo<NodeTypes>(() => ({ nextflowNode: NextflowNode }), []);
+  const nodeTypes = useMemo(() => ({ nextflowNode: NextflowNode }), []);
 
   useEffect(() => {
-    void loadWorkflowFromServer();
-    void loadRunsFromServer();
+    void (async () => {
+      await loadWorkflowFromServer();
+      await loadRunsFromServer();
+    })();
   }, [loadRunsFromServer, loadWorkflowFromServer]);
 
   useEffect(() => {
@@ -474,7 +476,12 @@ function WorkflowBuilderContent() {
             addNodeAt(kind, pos.x, pos.y);
           }}
         >
-          <Background variant="dots" gap={16} size={1} color="rgba(255,255,255,0.10)" />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={16}
+            size={1}
+            color="rgba(255,255,255,0.10)"
+          />
           <MiniMap pannable zoomable className="!bg-[#0b0d12] !border !border-white/10" />
           <Controls className="!bg-[#0b0d12] !border !border-white/10" />
           {isDragOver ? (

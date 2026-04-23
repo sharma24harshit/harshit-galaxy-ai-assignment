@@ -6,7 +6,7 @@ export const runGeminiLLM = task({
   id: "node.llm.run",
   run: async (payload: unknown) => {
     const schema = z.object({
-      model: z.string().min(1).default("gemini-1.5-flash"),
+      model: z.string().min(1).default("gemini-2.5-flash"),
       systemPrompt: z.string().optional(),
       userMessage: z.string().min(1),
       imageUrls: z.array(z.string().url()).default([]),
@@ -46,4 +46,3 @@ export const runGeminiLLM = task({
     return { ok: true as const, text };
   },
 });
-

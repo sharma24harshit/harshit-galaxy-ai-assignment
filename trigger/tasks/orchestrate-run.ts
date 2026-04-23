@@ -195,8 +195,8 @@ export const orchestrateWorkflowRun = task({
                   heightPercent,
                 });
 
-                if (!child.ok) throw new Error("Crop task failed");
-                const outputs = { output: child.imageUrl };
+                if (!child.ok || !child.output?.ok) throw new Error("Crop task failed");
+                const outputs = { output: child.output.imageUrl };
                 const dt = nowMs() - t0;
                 outputsByNode[nodeId] = { outputs };
                 setNodeRun(nodeRuns, nodeId, {
@@ -230,8 +230,8 @@ export const orchestrateWorkflowRun = task({
                   timestamp,
                 });
 
-                if (!child.ok) throw new Error("Extract frame task failed");
-                const outputs = { output: child.imageUrl };
+                if (!child.ok || !child.output?.ok) throw new Error("Extract frame task failed");
+                const outputs = { output: child.output.imageUrl };
                 const dt = nowMs() - t0;
                 outputsByNode[nodeId] = { outputs };
                 setNodeRun(nodeRuns, nodeId, {
@@ -267,21 +267,23 @@ export const orchestrateWorkflowRun = task({
                   outputsByNode,
                 });
 
-                const systemPrompt = (sysResolved?.[0] as string | undefined) ?? getManualInput(node, "system_prompt") || undefined;
+                const systemPrompt =
+                  ((sysResolved?.[0] as string | undefined) ??
+                    getManualInput(node, "system_prompt")) || undefined;
                 const userMessage = (userResolved?.[0] as string | undefined) ?? getManualInput(node, "user_message");
                 if (!userMessage) throw new Error("Missing user_message");
 
                 const imageUrls = (imagesResolved ?? []).filter((x) => typeof x === "string") as string[];
 
                 const child = await runGeminiLLM.triggerAndWait({
-                  model: node?.data?.inputs?.model || "gemini-1.5-flash",
+                  model: node?.data?.inputs?.model || "gemini-2.5-flash",
                   systemPrompt,
                   userMessage,
                   imageUrls,
                 });
 
-                if (!child.ok) throw new Error("LLM task failed");
-                const outputs = { output: child.text };
+                if (!child.ok || !child.output?.ok) throw new Error("LLM task failed");
+                const outputs = { output: child.output.text };
                 const dt = nowMs() - t0;
                 outputsByNode[nodeId] = { outputs };
                 setNodeRun(nodeRuns, nodeId, {
